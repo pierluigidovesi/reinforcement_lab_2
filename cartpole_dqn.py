@@ -126,6 +126,23 @@ class DQNAgent:
         for i in range(self.batch_size):  # For every batch
             target[i][action[i]] = random.randint(0, 1) # given
             target[i] = reward[i]+self.discount_factor*np.max(target[i+1])
+
+            '''
+            guide:
+            for state, action, reward, next_state, done in minibatch:
+                # if done, make our target reward
+                target = reward
+            if not done:
+              # predict the future discounted reward
+              target = reward + self.gamma * np.amax(self.model.predict(next_state)[0])
+            # make the agent to approximately map
+            # the current state to future discounted reward
+            # We'll call that target_f
+            target_f = self.model.predict(state)
+            target_f[0][action] = target
+            # Train the Neural Net with the state and target_f
+            self.model.fit(state, target_f, epochs=1, verbose=0)
+            '''
             
             ###############################################################################
         ###############################################################################
