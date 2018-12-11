@@ -7,6 +7,7 @@ from collections import deque
 from keras.layers import Dense
 from keras.optimizers import Adam
 from keras.models import Sequential
+from tqdm import tqdm
 
 EPISODES = 1000  # Maximum number of episodes
 
@@ -15,7 +16,10 @@ EPISODES = 1000  # Maximum number of episodes
 # Q function approximation with NN, experience replay, and target network
 class DQNAgent:
     # Constructor for the agent (invoked when DQN is first called in main)
-    def __init__(self, state_size, action_size):
+    def __init__(self, state_size, action_size, n_nodes_l1=16, n_nodes_l2=0,
+                 discount_factor=0.95, learning_rate=0.005,
+                 memory_size=1000, target_update_frequency=1):
+
         self.check_solve = False  # If True, stop if you satisfy solution confition
         self.render = False  # If you want to see Cartpole learning, then change to True
 
@@ -26,13 +30,13 @@ class DQNAgent:
         ################################################################################
         ################################################################################
         # Set hyper parameters for the DQN. Do not adjust those labeled as Fixed.
-        self.discount_factor = 0.95
-        self.learning_rate = 0.005
+        self.discount_factor = discount_factor  # 0.95
+        self.learning_rate = learning_rate  # 0.005
         self.epsilon = 0.02  # Fixed
         self.batch_size = 32  # Fixed
-        self.memory_size = 1000
+        self.memory_size = memory_size  # 1000
         self.train_start = 1000  # Fixed
-        self.target_update_frequency = 1
+        self.target_update_frequency = target_update_frequency  # 1
         ################################################################################
         ################################################################################
 
@@ -43,7 +47,7 @@ class DQNAgent:
         self.memory = deque(maxlen=self.memory_size)
 
         # Create main network and target network (using build_model defined below)
-        self.model = self.build_model()
+        self.model = self.build_model(n_nodes_l1, n_nodes_l2)
         self.target_model = self.build_model()
 
         # Initialize target network
@@ -55,10 +59,13 @@ class DQNAgent:
     ###############################################################################
     # Edit the Neural Network model here
     # Tip: Consult https://keras.io/getting-started/sequential-model-guide/
-    def build_model(self):
+    def build_model(self, n_nodes_l1=16, n_nodes_l2=0):
         model = Sequential()
-        model.add(Dense(16, input_dim=self.state_size, activation='relu',
+        model.add(Dense(n_nodes_l1, input_dim=self.state_size, activation='relu',  # 16
                         kernel_initializer='he_uniform'))
+        if n_nodes_l2 > 0:
+            model.add(Dense(n_nodes_l2, input_dim=self.state_size, activation='relu',
+                            kernel_initializer='he_uniform'))
         model.add(Dense(self.action_size, activation='linear',
                         kernel_initializer='he_uniform'))
         model.summary()
@@ -80,7 +87,7 @@ class DQNAgent:
         # Tip 1: Use the random package to generate a random action.
         # Tip 2: Use keras.model.predict() to compute Q-values from the state.
         if random.uniform(0, 1) < self.epsilon:
-            action = random.randrange(self.action_size) # given
+            action = random.randrange(self.action_size)  # given
         else:
             action = np.argmax(self.model.predict(state)[0])
 
@@ -123,13 +130,22 @@ class DQNAgent:
         # Insert your Q-learning code here
         # Tip 1: Observe that the Q-values are stored in the variable target
         # Tip 2: What is the Q-value of the action taken at the last state of the episode?
-        for i in range(self.batch_size):  # For every batch
+        """for i in range(self.batch_size):  # For every batch
             #target[i][action[i]] = random.randint(0, 1) # given
             target[i][action[i]] = reward[i]
             if not done[i]:
                 target[i][action[i]] = reward[i]+self.discount_factor*np.max(target_val[i])
+       """
+        # tar1 = copy.deepcopy(target[:][action[:]])
 
-            ###############################################################################
+        target[:self.batch_size][action[:self.batch_size]] = reward[:self.batch_size] + (
+                    False == done[:self.batch_size]) * self.discount_factor * np.max(target_val[:self.batch_size])
+        # tar2 = copy.deepcopy(target[:][action[:]])
+
+        # if tar1 != tar2:
+        #  print('no')
+
+        ###############################################################################
         ###############################################################################
 
         # Train the inner loop network
@@ -159,6 +175,21 @@ if __name__ == "__main__":
     state_size = env.observation_space.shape[0]
     action_size = env.action_space.n
 
+    """n_node_l1 = [8, 16, 32, 64]
+    n_node_l2 = [0, 4, 8, 16, 32]
+    discount_factor = [0.9, 0.95, 0.99]
+    learning_rate = [0.01, 0.05, 0.1]
+    memory_size = [500, 1000, 2000]
+    target_update_frequency = [1, 10, 100]
+
+
+
+    for 
+      # Create agent, see the DQNAgent __init__ method for details
+        agent = DQNAgent(state_size, action_size, n_nodes_l1, n_nodes_l2, 
+                         discount_factor, learning_rate,
+                         memory_size, target_update_frequency)"""
+
     # Create agent, see the DQNAgent __init__ method for details
     agent = DQNAgent(state_size, action_size)
 
@@ -182,7 +213,7 @@ if __name__ == "__main__":
             state = next_state
 
     scores, episodes = [], []  # Create dynamically growing score and episode counters
-    for e in range(EPISODES):
+    for e in tqdm(range(EPISODES)):
         done = False
         score = 0
         state = env.reset()  # Initialize/reset the environment
@@ -217,8 +248,8 @@ if __name__ == "__main__":
                 scores.append(score)
                 episodes.append(e)
 
-                print("episode:", e, "  score:", score, " q_value:", max_q_mean[e], "  memory length:",
-                      len(agent.memory))
+                # print("episode:", e, "  score:", score, " q_value:", max_q_mean[e], "  memory length:",
+                #      len(agent.memory))
 
                 # if the mean of scores of last 100 episodes is bigger than 195
                 # stop training
@@ -228,3 +259,4 @@ if __name__ == "__main__":
                         agent.plot_data(episodes, scores, max_q_mean[:e + 1])
                         sys.exit()
     agent.plot_data(episodes, scores, max_q_mean)
+
