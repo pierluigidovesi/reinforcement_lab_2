@@ -2,14 +2,17 @@ import sys
 import gym
 import pylab
 import random
+import os
 import numpy as np
 import copy
+from keras.models import load_model
 from collections import deque
 from keras.layers import Dense
 from keras.optimizers import Adam
 from keras.models import Sequential
 from tqdm import tqdm
 
+load = False
 
 EPISODES = 200  # Maximum number of episodes
 
@@ -50,7 +53,7 @@ class DQNAgent:
 
         # Create main network and target network (using build_model defined below)
         self.model = self.build_model(n_nodes_l1, n_nodes_l2)
-        self.target_model = self.build_model()
+        self.target_model = self.build_model(n_nodes_l1,n_nodes_l2)
 
         # Initialize target network
         self.update_target_model()
@@ -133,28 +136,7 @@ class DQNAgent:
         # Insert your Q-learning code here
         # Tip 1: Observe that the Q-values are stored in the variable target
         # # Tip 2: What is the Q-value of the action taken at the last state of the episode?
-        # for i in range(self.batch_size):  # For every batch
-        #     #target[i][action[i]] = random.randint(0, 1) # given
-        #     target[i][action[i]] = reward[i]
-        #     if not done[i]:
-        #         target[i][action[i]] = reward[i]+self.discount_factor*np.max(target_val[i])
-
-        # tar1 = copy.deepcopy(target[:, np.asarray(action)])
-        #
-        # print(False == np.asarray(done))
         target[np.arange(batch_size), np.asarray(action)] = reward + np.logical_not(np.asarray(done)) * self.discount_factor * np.max(target_val, axis=1)
-
-        # tar2 = copy.deepcopy(target[:, np.asarray(action)])
-        #
-        #
-        # experiment = tar1 - tar2
-        #if np.any(tar1 != tar2):
-        #    print('no')
-
-        #if np.any(tar1 == tar2):
-        #    print('yes')
-
-
 
         ###############################################################################
         ###############################################################################
@@ -165,109 +147,136 @@ class DQNAgent:
         return
 
     # Plots the score per episode as well as the maximum q value per episode, averaged over precollected states.
-    def plot_data(self, episodes, scores, max_q_mean):
+    def plot_data(self, episodes, scores, max_q_mean, name, my_path):
         pylab.figure(0)
         pylab.plot(episodes, max_q_mean, 'b')
         pylab.xlabel("Episodes")
         pylab.ylabel("Average Q Value")
-        pylab.savefig("qvalues.png")
+        pylab.savefig(os.path.join(my_path, "qvalues_"+name+".png"))
+
 
         pylab.figure(1)
-        pylab.plot(episodes, scores, 'b')
+        pylab.plot(episodes, scores[1:], 'b')
         pylab.xlabel("Episodes")
         pylab.ylabel("Score")
-        pylab.savefig("scores.png")
+        pylab.savefig(os.path.join(my_path, "scores_"+name+".png"))
+
+        pylab.close('all')
+
+    def save_model(self, model, name, my_path):
+        model.save(os.path.join(my_path, name))  # creates a HDF5 file 'my_model.h5'
+        return
 
 
-if __name__ == "__main__":
+def main():
     # For CartPole-v0, maximum episode length is 200
     env = gym.make('CartPole-v0')  # Generate Cartpole-v0 environment object from the gym library
     # Get state and action sizes from the environment
     state_size = env.observation_space.shape[0]
     action_size = env.action_space.n
 
-    """n_node_l1 = [8, 16, 32, 64]
-    n_node_l2 = [0, 4, 8, 16, 32]
-    discount_factor = [0.9, 0.95, 0.99]
-    learning_rate = [0.01, 0.05, 0.1]
-    memory_size = [500, 1000, 2000]
-    target_update_frequency = [1, 10, 100]
+    n_node_l1_list = [8, 16, 32, 64]
+    n_node_l2_list = [0, 4, 8, 16, 32]
+    discount_factor_list = [0.9, 0.95, 0.99]
+    learning_rate_list = [0.01, 0.05, 0.1]
+    memory_size_list = [1000, 2000, 4000]
+    target_update_frequency_list = [1, 10, 100]
 
+    n_node_l1 = n_node_l1_list[0]
+    n_node_l2 = n_node_l2_list[0]
+    discount_factor = discount_factor_list[1]
+    learning_rate = learning_rate_list[1]
+    memory_size = memory_size_list[0]
+    target_update_frequency = target_update_frequency_list[0]
 
-
-    for 
-      # Create agent, see the DQNAgent __init__ method for details
-        agent = DQNAgent(state_size, action_size, n_nodes_l1, n_nodes_l2, 
+    for n_node_l1 in n_node_l1_list:
+        # Create agent, see the DQNAgent __init__ method for details
+        agent = DQNAgent(state_size, action_size, n_node_l1, n_node_l2,
                          discount_factor, learning_rate,
-                         memory_size, target_update_frequency)"""
+                         memory_size, target_update_frequency)
 
-    # Create agent, see the DQNAgent __init__ method for details
-    agent = DQNAgent(state_size, action_size)
+        # Create agent, see the DQNAgent __init__ method for details
+        # agent = DQNAgent(state_size, action_size)
 
-    # Collect test states for plotting Q values using uniform random policy
-    test_states = np.zeros((agent.test_state_no, state_size))
-    max_q = np.zeros((EPISODES, agent.test_state_no))
-    max_q_mean = np.zeros((EPISODES, 1))
+        if load:
+            agent.model = load_model('my_model.h5')
 
-    done = True
-    for i in range(agent.test_state_no):
-        if done:
-            done = False
-            state = env.reset()
-            state = np.reshape(state, [1, state_size])
-            test_states[i] = state
-        else:
-            action = random.randrange(action_size)
-            next_state, reward, done, info = env.step(action)
-            next_state = np.reshape(next_state, [1, state_size])
-            test_states[i] = state
-            state = next_state
+        # Collect test states for plotting Q values using uniform random policy
+        test_states = np.zeros((agent.test_state_no, state_size))
+        max_q = np.zeros((EPISODES, agent.test_state_no))
+        max_q_mean = np.zeros((EPISODES, 1))
 
-    scores, episodes = [], []  # Create dynamically growing score and episode counters
-    for e in tqdm(range(EPISODES)):
-        done = False
-        score = 0
-        state = env.reset()  # Initialize/reset the environment
-        state = np.reshape(state, [1,
-                                   state_size])  # Reshape state so that to a 1 by state_size two-dimensional array ie. [x_1,x_2] to [[x_1,x_2]]
-        # Compute Q values for plotting
-        tmp = agent.model.predict(test_states)
-        max_q[e][:] = np.max(tmp, axis=1)
-        max_q_mean[e] = np.mean(max_q[e][:])
-
-        while not done:
-            if agent.render:
-                env.render()  # Show cartpole animation
-
-            # Get action for the current state and go one step in environment
-            action = agent.get_action(state)
-            next_state, reward, done, info = env.step(action)
-            next_state = np.reshape(next_state, [1, state_size])  # Reshape next_state similarly to state
-
-            # Save sample <s, a, r, s'> to the replay memory
-            agent.append_sample(state, action, reward, next_state, done)
-            # Training step
-            agent.train_model()
-            score += reward  # Store episodic reward
-            state = next_state  # Propagate state
-
+        done = True
+        for i in range(agent.test_state_no):
             if done:
-                # At the end of very episode, update the target network
-                if e % agent.target_update_frequency == 0:
-                    agent.update_target_model()
-                # Plot the play time for every episode
-                scores.append(score)
-                episodes.append(e)
+                done = False
+                state = env.reset()
+                state = np.reshape(state, [1, state_size])
+                test_states[i] = state
+            else:
+                action = random.randrange(action_size)
+                next_state, reward, done, info = env.step(action)
+                next_state = np.reshape(next_state, [1, state_size])
+                test_states[i] = state
+                state = next_state
 
-                # print("episode:", e, "  score:", score, " q_value:", max_q_mean[e], "  memory length:",
-                #      len(agent.memory))
+        scores, episodes = [0], []  # Create dynamically growing score and episode counters
+        for e in tqdm(range(EPISODES)):
+            done = False
+            score = 0
+            state = env.reset()  # Initialize/reset the environment
+            state = np.reshape(state, [1, state_size])  # Reshape state so that to a 1 by state_size
+                                                        # two-dimensional array ie. [x_1,x_2] to [[x_1,x_2]]
+            # Compute Q values for plotting
+            tmp = agent.model.predict(test_states)
+            max_q[e][:] = np.max(tmp, axis=1)
+            max_q_mean[e] = np.mean(max_q[e][:])
 
-                # if the mean of scores of last 100 episodes is bigger than 195
-                # stop training
-                if agent.check_solve:
-                    if np.mean(scores[-min(100, len(scores)):]) >= 195:
-                        print("solved after", e - 100, "episodes")
-                        agent.plot_data(episodes, scores, max_q_mean[:e + 1])
-                        sys.exit()
-    agent.plot_data(episodes, scores, max_q_mean)
+            while not done:
+                if agent.render:
+                    env.render()  # Show cartpole animation
+
+                # Get action for the current state and go one step in environment
+                action = agent.get_action(state)
+                next_state, reward, done, info = env.step(action)
+                next_state = np.reshape(next_state, [1, state_size])  # Reshape next_state similarly to state
+
+                # Save sample <s, a, r, s'> to the replay memory
+                agent.append_sample(state, action, reward, next_state, done)
+                # Training step
+                if not load:
+                    agent.train_model()
+                score += reward  # Store episodic reward
+                state = next_state  # Propagate state
+
+                if done:
+                    # At the end of very episode, update the target network
+                    if e % agent.target_update_frequency == 0:
+                        agent.update_target_model()
+                    # Plot the play time for every episode
+                    # scores.append(score)
+                    scores.append(scores[-1] * 0.99 + score * 0.01)
+                    episodes.append(e)
+
+                    # print("episode:", e, "  score:", score, " q_value:", max_q_mean[e], "  memory length:",
+                    #      len(agent.memory))
+
+                    # if the mean of scores of last 100 episodes is bigger than 195
+                    # stop training
+                    if agent.check_solve:
+                        if np.mean(scores[-min(100, len(scores)):]) >= 195:
+                            print("solved after", e - 100, "episodes")
+                            agent.plot_data(episodes, scores, max_q_mean[:e + 1])
+                            sys.exit()
+
+        name = 'model_ep'+str(EPISODES)+'_nl1_'+str(n_node_l1)+'_nl2_'+str(n_node_l2)+'_df_'+str(discount_factor)+'_eta_' + \
+               str(learning_rate)+'_mem_'+str(memory_size)+'_tuf_'+str(target_update_frequency)
+
+        my_path = "./out"
+        agent.plot_data(episodes, scores, max_q_mean, name, my_path)
+        agent.save_model(agent.model, name, my_path)
+
+
+if __name__ == "__main__":
+    main()
 
