@@ -3,13 +3,15 @@ import gym
 import pylab
 import random
 import numpy as np
+import copy
 from collections import deque
 from keras.layers import Dense
 from keras.optimizers import Adam
 from keras.models import Sequential
 from tqdm import tqdm
 
-EPISODES = 1000  # Maximum number of episodes
+
+EPISODES = 200  # Maximum number of episodes
 
 
 # DQN Agent for the Cartpole
@@ -64,6 +66,7 @@ class DQNAgent:
         model.add(Dense(n_nodes_l1, input_dim=self.state_size, activation='relu',  # 16
                         kernel_initializer='he_uniform'))
         if n_nodes_l2 > 0:
+            print("second layer dim: ",n_nodes_l2)
             model.add(Dense(n_nodes_l2, input_dim=self.state_size, activation='relu',
                             kernel_initializer='he_uniform'))
         model.add(Dense(self.action_size, activation='linear',
@@ -92,9 +95,9 @@ class DQNAgent:
             action = np.argmax(self.model.predict(state)[0])
 
         return action
+        ###############################################################################
+        ###############################################################################
 
-    ###############################################################################
-    ###############################################################################
     # Save sample <s,a,r,s'> to the replay memory
     def append_sample(self, state, action, reward, next_state, done):
         self.memory.append((state, action, reward, next_state, done))  # Add sample to the end of the list
@@ -129,21 +132,29 @@ class DQNAgent:
         ###############################################################################
         # Insert your Q-learning code here
         # Tip 1: Observe that the Q-values are stored in the variable target
-        # Tip 2: What is the Q-value of the action taken at the last state of the episode?
-        """for i in range(self.batch_size):  # For every batch
-            #target[i][action[i]] = random.randint(0, 1) # given
-            target[i][action[i]] = reward[i]
-            if not done[i]:
-                target[i][action[i]] = reward[i]+self.discount_factor*np.max(target_val[i])
-       """
-        # tar1 = copy.deepcopy(target[:][action[:]])
+        # # Tip 2: What is the Q-value of the action taken at the last state of the episode?
+        # for i in range(self.batch_size):  # For every batch
+        #     #target[i][action[i]] = random.randint(0, 1) # given
+        #     target[i][action[i]] = reward[i]
+        #     if not done[i]:
+        #         target[i][action[i]] = reward[i]+self.discount_factor*np.max(target_val[i])
 
-        target[:self.batch_size][action[:self.batch_size]] = reward[:self.batch_size] + (
-                    False == done[:self.batch_size]) * self.discount_factor * np.max(target_val[:self.batch_size])
-        # tar2 = copy.deepcopy(target[:][action[:]])
+        # tar1 = copy.deepcopy(target[:, np.asarray(action)])
+        #
+        # print(False == np.asarray(done))
+        target[np.arange(batch_size), np.asarray(action)] = reward + np.logical_not(np.asarray(done)) * self.discount_factor * np.max(target_val, axis=1)
 
-        # if tar1 != tar2:
-        #  print('no')
+        # tar2 = copy.deepcopy(target[:, np.asarray(action)])
+        #
+        #
+        # experiment = tar1 - tar2
+        #if np.any(tar1 != tar2):
+        #    print('no')
+
+        #if np.any(tar1 == tar2):
+        #    print('yes')
+
+
 
         ###############################################################################
         ###############################################################################
