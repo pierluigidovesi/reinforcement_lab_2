@@ -11,6 +11,16 @@ from keras.layers import Dense
 from keras.optimizers import Adam
 from keras.models import Sequential
 from tqdm import tqdm
+from keras import backend as K
+
+
+
+# set seeds
+from numpy.random import seed
+from tensorflow import set_random_seed
+seed(1)
+set_random_seed(1)
+
 
 load = False
 
@@ -25,7 +35,7 @@ class DQNAgent:
                  discount_factor=0.95, learning_rate=0.005,
                  memory_size=1000, target_update_frequency=1):
 
-        self.check_solve = False  # If True, stop if you satisfy solution confition
+        self.check_solve = True  # If True, stop if you satisfy solution condition
         self.render = False  # If you want to see Cartpole learning, then change to True
 
         # Get size of state and action
@@ -177,11 +187,13 @@ def get_name(n_node_l1, n_node_l2, discount_factor, learning_rate, memory_size, 
 
 def main():
     # For CartPole-v0, maximum episode length is 200
-    env = gym.make('CartPole-v0')  # Generate Cartpole-v0 environment object from the gym library
+    # Generate Cartpole-v0 environment object from the gym library
+    env = gym.make('CartPole-v0')
     # Get state and action sizes from the environment
     state_size = env.observation_space.shape[0]
     action_size = env.action_space.n
 
+    # GRID SEARCH
     # n_node_l1_list = [64]
     # n_node_l2_list = [0]
     # discount_factor_list = [0.8, 0.9, 0.95, 0.99]
@@ -232,6 +244,16 @@ def main():
     configuration_list.append([64, 0, 0.95, 0.005, 1000, 100])
     configuration_list.append([64, 0, 0.95, 0.005, 1000, 200])
 
+    # best frankenstein combo
+    configuration_list.append([64, 0, 1, 0.001, 2000, 100])
+
+    # da grid search già
+    configuration_list.append([64, 16, 0.99, 0.005, 4000, 5])
+    configuration_list.append([64, 32, 0.99, 0.005, 4000, 5])
+    configuration_list.append([64, 32, 0.99, 0.005, 4000, 1])
+    configuration_list.append([64, 32, 0.99, 0.005, 2000, 1])
+    configuration_list.append([64, 32, 0.99, 0.005, 1000, 1])
+
     for configuration in configuration_list:
 
         n_node_l1 = configuration[0]
@@ -247,15 +269,17 @@ def main():
         print(name)
 
         model_path_old = Path(f'./out/{name}')
-        model_path_new = Path(f'./out/new/{name}')
+        model_path_new = Path(f'./out/new/fixed_seed/{name}')
 
-        if model_path_old.exists():
+        check_old_stuff = False
+
+        if model_path_old.exists() and check_old_stuff:
             print('OLD DETECTED, skipping: ', name)
-            break
+            continue
 
         if model_path_new.exists():
             print('NEW DETECTED, skipping: ', name)
-            break
+            continue
 
         # Create agent, see the DQNAgent __init__ method for details
         agent = DQNAgent(state_size, action_size, n_node_l1, n_node_l2,
@@ -287,7 +311,8 @@ def main():
                 test_states[i] = state
                 state = next_state
 
-        scores, episodes = [0], []  # Create dynamically growing score and episode counters
+        scores, episodes = [], []  # Create dynamically growing score and episode counters
+        plot_scores = [0]
         for e in tqdm(range(EPISODES)):
             done = False
             score = 0
@@ -321,8 +346,8 @@ def main():
                     if e % agent.target_update_frequency == 0:
                         agent.update_target_model()
                     # Plot the play time for every episode
-                    # scores.append(score)
-                    scores.append(scores[-1] * 0.99 + score * 0.01)
+                    scores.append(score)
+                    plot_scores.append(plot_scores[-1] * 0.99 + score * 0.01)
                     episodes.append(e)
 
                     # print("episode:", e, "  score:", score, " q_value:", max_q_mean[e], "  memory length:",
@@ -333,12 +358,17 @@ def main():
                     if agent.check_solve:
                         if np.mean(scores[-min(100, len(scores)):]) >= 195:
                             print("solved after", e - 100, "episodes")
-                            agent.plot_data(episodes, scores, max_q_mean[:e + 1])
-                            sys.exit()
+                            print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+                            # agent.plot_data(episodes, plot_scores, max_q_mean[:e + 1])
+                            # sys.exit()
 
-        my_path = "./out/new"
-        agent.plot_data(episodes, scores, max_q_mean, name, my_path)
+        my_path = "./out/new/fixed_seed"
+        agent.plot_data(episodes, plot_scores, max_q_mean, name, my_path)
         agent.save_model(agent.model, name, my_path)
+
+        if K.backend() == 'tensorflow':
+            K.clear_session()
+            print('tf session cleared!')
 
 
 if __name__ == "__main__":
